@@ -31,13 +31,17 @@
              (installed? (get-card state target))
              (active? (get-card state target)))
     (let [target-side (keyword (str/lower-case (:side target)))
-          old-card (get-card state target)]
+          old-card (get-card state target)
+          new-card (atom target)]
       (when-let [leave-play (:leave-play (card-def target))]
         (leave-play state target-side (make-eid state) target nil))
       (when-let [uninstall-effect (:uninstall (card-def target))]
-        (uninstall-effect state target-side (make-eid state) old-card [{:old-card old-card}])))
-    ;; return the new state of the old card in case the handlers changed its state at all
-    (get-card state target)))
+        (uninstall-effect state target-side (make-eid state) old-card
+                          [{:old-card old-card :new-card new-card}]))
+      ;; return the new state of the hosted card in case the handlers changed its state
+      ;; note we can't refresh our view of `target` from the game state directly because
+      ;; `target` already contains changes from the hosting effect (flags, counters etc).
+      @new-card)))
 
 (defn host
   "Host the target onto the card."
@@ -45,11 +49,8 @@
   ([state side card {:keys [zone cid host installed] :as target} {:keys [facedown no-mu]}]
    (when (not= cid (:cid card))
      ;; uninstall handlers may change the target's state so refresh our view of it.
-     ;; `target` itself already contains updated information (installed, seen etc)
-     ;; so we have to cherry-pick any persistent state (counters) that might have changed.
      (let [possibly-updated-target (handle-card-is-uninstalled state side card target)
-           target (if (nil? possibly-updated-target) target
-                    (assoc target :counter (:counter possibly-updated-target)))]
+           target (if (nil? possibly-updated-target) target possibly-updated-target)]
        (unregister-events state side target)
        (unregister-static-abilities state side target)
        (doseq [s [:runner :corp]]

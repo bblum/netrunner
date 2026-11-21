@@ -1875,11 +1875,9 @@
                                 " bad publicity")
                       :async true
                       :effect (effect
-                                (let [bp (get-counters (:old-card context) :bad-publicity)]
-                                  (wait-for
-                                    (add-counter state side (make-eid state eid) (:old-card context)
-                                                 :bad-publicity (- bp) {:suppress-checkpoint true})
-                                    (gain-bad-publicity state side eid bp))))}
+                                (when-let [new-card (:new-card context)]
+                                  (swap! new-card assoc :counter (dissoc (:counter @new-card) :bad-publicity)))
+                                (gain-bad-publicity state side eid (get-counters (:old-card context) :bad-publicity)))}
                      card targets))
    :events [{:event :corp-turn-begins
              :interactive (effect true)
